@@ -486,6 +486,184 @@ class DatabaseEngine {
     return this.state.ticket_tiers.length < init;
   }
 
+  // Concurrency-Safe Atomic Reservation Transaction (PostgreSQL SELECT ... FOR UPDATE + In-Memory Fallback)
+  async executeReservationTransaction(
+    tenantId: string,
+    attendeeId: string,
+    items: { ticket_tier_id: string; quantity: number }[],
+    holdMinutes: number
+  ): Promise<{ reservation: Reservation; items: ReservationItem[] }> {
+    if (this.isPostgreSql()) {
+      const client = await this.pool!.connect();
+      try {
+        await client.query('BEGIN');
+        const now = new Date();
+        const validatedItems: { tier: TicketTier; quantity: number }[] = [];
+
+        for (const reqItem of items) {
+          // Explicit PostgreSQL Row-Level Lock (SELECT ... FOR UPDATE)
+          const tierRes = await client.query(
+            'SELECT * FROM ticket_tiers WHERE id = $1 FOR UPDATE',
+            [reqItem.ticket_tier_id]
+          );
+
+          if (tierRes.rows.length === 0) {
+            throw { status: 404, code: 'TIER_NOT_FOUND', message: `Ticket tier ${reqItem.ticket_tier_id} not found` };
+          }
+          const tier: TicketTier = tierRes.rows[0];
+
+          const eventRes = await client.query('SELECT * FROM events WHERE id = $1', [tier.event_id]);
+          if (eventRes.rows.length === 0) {
+            throw { status: 404, code: 'EVENT_NOT_FOUND', message: 'Associated event not found' };
+          }
+          const event = eventRes.rows[0];
+
+          if (event.status !== 'published') {
+            throw { status: 409, code: 'EVENT_NOT_PUBLISHED', message: 'Event is not open for ticket sales' };
+          }
+
+          const cutoffDate = new Date(event.sales_cutoff);
+          if (now > cutoffDate) {
+            throw { status: 409, code: 'SALES_CUTOFF_PASSED', message: 'Sales cut-off date has passed for this event' };
+          }
+
+          if (tier.available_quantity < reqItem.quantity) {
+            throw {
+              status: 409,
+              code: 'SOLD_OUT',
+              message: `Insufficient inventory for tier "${tier.name}". Available: ${tier.available_quantity}, requested: ${reqItem.quantity}`,
+            };
+          }
+
+          validatedItems.push({ tier, quantity: reqItem.quantity });
+        }
+
+        // Decrement available_quantity atomically inside transaction
+        for (const { tier, quantity } of validatedItems) {
+          await client.query(
+            'UPDATE ticket_tiers SET available_quantity = available_quantity - $1 WHERE id = $2',
+            [quantity, tier.id]
+          );
+        }
+
+        const resId = uuidv4();
+        const expiresAt = new Date(now.getTime() + holdMinutes * 60 * 1000).toISOString();
+        const nowIso = now.toISOString();
+
+        await client.query(
+          `INSERT INTO reservations (id, tenant_id, attendee_id, status, expires_at, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [resId, tenantId, attendeeId, 'ACTIVE', expiresAt, nowIso, nowIso]
+        );
+
+        const insertedItems: ReservationItem[] = [];
+        for (const { tier, quantity } of validatedItems) {
+          const itemId = uuidv4();
+          await client.query(
+            `INSERT INTO reservation_items (id, reservation_id, ticket_tier_id, quantity, unit_price_cents)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [itemId, resId, tier.id, quantity, tier.price_cents]
+          );
+          insertedItems.push({
+            id: itemId,
+            reservation_id: resId,
+            ticket_tier_id: tier.id,
+            quantity,
+            unit_price_cents: tier.price_cents,
+          });
+        }
+
+        await client.query('COMMIT');
+
+        const newReservation: Reservation = {
+          id: resId,
+          tenant_id: tenantId,
+          attendee_id: attendeeId,
+          status: 'ACTIVE',
+          expires_at: expiresAt,
+          created_at: nowIso,
+          updated_at: nowIso,
+        };
+        return { reservation: newReservation, items: insertedItems };
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
+    // In-memory fallback
+    return this.withLock(async () => {
+      const now = new Date();
+      const validatedItems: { tier: TicketTier; quantity: number }[] = [];
+
+      for (const reqItem of items) {
+        const tier = this.state.ticket_tiers.find((t) => t.id === reqItem.ticket_tier_id);
+        if (!tier) {
+          throw { status: 404, code: 'TIER_NOT_FOUND', message: `Ticket tier ${reqItem.ticket_tier_id} not found` };
+        }
+
+        const event = this.state.events.find((e) => e.id === tier.event_id);
+        if (!event) {
+          throw { status: 404, code: 'EVENT_NOT_FOUND', message: 'Associated event not found' };
+        }
+
+        if (event.status !== 'published') {
+          throw { status: 409, code: 'EVENT_NOT_PUBLISHED', message: 'Event is not open for ticket sales' };
+        }
+
+        const cutoffDate = new Date(event.sales_cutoff);
+        if (now > cutoffDate) {
+          throw { status: 409, code: 'SALES_CUTOFF_PASSED', message: 'Sales cut-off date has passed for this event' };
+        }
+
+        if (tier.available_quantity < reqItem.quantity) {
+          throw {
+            status: 409,
+            code: 'SOLD_OUT',
+            message: `Insufficient inventory for tier "${tier.name}". Available: ${tier.available_quantity}, requested: ${reqItem.quantity}`,
+          };
+        }
+
+        validatedItems.push({ tier, quantity: reqItem.quantity });
+      }
+
+      for (const { tier, quantity } of validatedItems) {
+        tier.available_quantity -= quantity;
+      }
+
+      const resId = uuidv4();
+      const expiresAt = new Date(now.getTime() + holdMinutes * 60 * 1000).toISOString();
+      const nowIso = now.toISOString();
+
+      const newRes: Reservation = {
+        id: resId,
+        tenant_id: tenantId,
+        attendee_id: attendeeId,
+        status: 'ACTIVE',
+        expires_at: expiresAt,
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+      this.state.reservations.push(newRes);
+
+      const insertedItems: ReservationItem[] = validatedItems.map(({ tier, quantity }) => {
+        const lineItem: ReservationItem = {
+          id: uuidv4(),
+          reservation_id: resId,
+          ticket_tier_id: tier.id,
+          quantity,
+          unit_price_cents: tier.price_cents,
+        };
+        this.state.reservation_items.push(lineItem);
+        return lineItem;
+      });
+
+      return { reservation: newRes, items: insertedItems };
+    });
+  }
+
   // Concurrency-safe atomic reservation insertion
   async insertReservation(
     reservation: Omit<Reservation, 'id' | 'created_at' | 'updated_at'>,

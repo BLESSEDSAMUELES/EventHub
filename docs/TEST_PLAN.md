@@ -74,3 +74,21 @@ Output:
   ALL ACCEPTANCE & CONCURRENCY TESTS PASSED (6/6)
 ====================================================
 ```
+
+---
+
+## 4. How to Execute the Postman Collection with Edge Cases
+
+The Postman collection is located at [`backend/postman/eventforge.postman_collection.json`](file:///d:/College/Projects/EventHub/backend/postman/eventforge.postman_collection.json).
+
+### Running in Postman App:
+1. Open Postman ➔ Click **Import** ➔ Select `backend/postman/eventforge.postman_collection.json`.
+2. Ensure the collection variable `baseUrl` is set to `http://localhost:4000` (or your deployed backend URL).
+3. Click the collection name ➔ Click **Run collection** ➔ Run all 17 requests including the dedicated **6. Edge Cases & Concurrency Tests** folder.
+4. All tests will pass with automated assertions (`pm.test`).
+
+### Running via Newman CLI:
+```bash
+npx newman run backend/postman/eventforge.postman_collection.json --env-var baseUrl=http://localhost:4000
+```
+

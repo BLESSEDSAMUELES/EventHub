@@ -674,9 +674,20 @@ router.get('/organizer/orders', authenticateToken, requireRole('organizer', 'adm
 
 router.post('/payments/mock', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { order_id, outcome, payment_method } = req.body;
+    const { order_id, outcome, payment_method, mode } = req.body;
     if (!order_id) {
       res.status(400).json({ error: 'VALIDATION_ERROR', message: 'order_id is required' });
+      return;
+    }
+
+    if (mode === 'async') {
+      const asyncResult = await paymentService.initiateAsyncMockPayment({
+        order_id,
+        attendee_id: req.user!.id,
+        outcome: outcome || 'approve',
+        payment_method: payment_method || 'credit_card',
+      });
+      res.status(202).json(asyncResult);
       return;
     }
 

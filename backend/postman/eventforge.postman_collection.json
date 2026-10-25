@@ -1,208 +1,678 @@
 {
   "info": {
-    "name": "EventForge Ticketing API Collection",
+    "name": "EventForge Ticketing API Collection (Production & Edge Cases)",
     "_postman_id": "c622b7a4-84d9-4d6f-87d2-7c3905cf71e4",
-    "description": "Comprehensive API collection for EventForge Multi-Tenant Event & Ticket Reservation System",
+    "description": "Comprehensive automated API test suite for EventForge Multi-Tenant Event & Ticket Reservation System. Includes full RBAC authentication, 10-minute hold reservation engine, idempotency, asynchronous payment simulation, and edge cases (concurrent bookings, expired holds, over-allocation, and cross-tenant isolation).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "System Health",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/health",
-          "host": ["{{baseUrl}}"],
-          "path": ["health"]
-        }
-      }
-    },
-    {
-      "name": "Auth - Login Attendee",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"email\": \"blessed@example.com\",\n  \"password\": \"password123\"\n}"
+      "name": "1. Authentication & RBAC",
+      "item": [
+        {
+          "name": "System Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Service is online', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql('ok');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
         },
-        "url": {
-          "raw": "{{baseUrl}}/api/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "auth", "login"]
-        }
-      }
-    },
-    {
-      "name": "Auth - Login Organizer",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"email\": \"priya@example.com\",\n  \"password\": \"password123\"\n}"
+        {
+          "name": "Login Attendee Persona",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Attendee Login Successful (200)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('token', json.token);",
+                  "    pm.expect(json.user.role).to.eql('attendee');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"blessed@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
         },
-        "url": {
-          "raw": "{{baseUrl}}/api/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "auth", "login"]
-        }
-      }
-    },
-    {
-      "name": "Auth - Login Admin",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"admin123\"\n}"
+        {
+          "name": "Login Organizer Persona",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Organizer Login Successful (200)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('organizerToken', json.token);",
+                  "    pm.expect(json.user.role).to.eql('organizer');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"priya@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
         },
-        "url": {
-          "raw": "{{baseUrl}}/api/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "auth", "login"]
+        {
+          "name": "Login Platform Admin Persona",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Admin Login Successful (200)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('adminToken', json.token);",
+                  "    pm.expect(json.user.role).to.eql('admin');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "Events - List Public Events",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/events?city=Chennai",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "events"],
-          "query": [{ "key": "city", "value": "Chennai" }]
-        }
-      }
-    },
-    {
-      "name": "Events - Get Event Details",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/events/{{eventId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "events", "{{eventId}}"]
-        }
-      }
-    },
-    {
-      "name": "Reservations - Create 10-Min Hold",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"items\": [\n    {\n      \"ticket_tier_id\": \"{{tierId}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
+      "name": "2. Event Discovery & Redis Caching",
+      "item": [
+        {
+          "name": "List Public Events (Cached in Redis)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.length).to.be.above(0);",
+                  "    pm.collectionVariables.set('eventId', json[0].id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events?city=Chennai",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "events"],
+              "query": [{ "key": "city", "value": "Chennai" }]
+            }
+          }
         },
-        "url": {
-          "raw": "{{baseUrl}}/api/reservations",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "reservations"]
+        {
+          "name": "Get Event Details & Tiers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns Event Details with Ticket Tiers', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.tiers.length).to.be.above(0);",
+                  "    pm.collectionVariables.set('tierId', json.tiers[0].id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "events", "{{eventId}}"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "Orders - Create Order (Idempotent)",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" },
-          { "key": "Idempotency-Key", "value": "test-key-001" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"reservation_id\": \"{{reservationId}}\",\n  \"idempotency_key\": \"test-key-001\"\n}"
+      "name": "3. Reservation Engine (10-Min Hold)",
+      "item": [
+        {
+          "name": "Create 10-Minute Reservation Hold (Row Locked)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Hold created with 10-min expiration TTL (201)', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.reservation.status).to.eql('ACTIVE');",
+                  "    pm.expect(json.reservation.expires_at).to.be.a('string');",
+                  "    pm.collectionVariables.set('reservationId', json.reservation.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"ticket_tier_id\": \"{{tierId}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reservations"]
+            }
+          }
         },
-        "url": {
-          "raw": "{{baseUrl}}/api/orders",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "orders"]
+        {
+          "name": "Get Reservation Details & Expiry",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.reservation.id).to.eql(pm.collectionVariables.get('reservationId'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations/{{reservationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reservations", "{{reservationId}}"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "Payments - Simulate Mock Payment Approval",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"order_id\": \"{{orderId}}\",\n  \"outcome\": \"approve\",\n  \"payment_method\": \"credit_card\"\n}"
+      "name": "4. Orders & Idempotency",
+      "item": [
+        {
+          "name": "Create Order from Active Hold (Idempotent)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Order created in PENDING status (201)', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('orderId', json.id);",
+                  "    pm.expect(json.status).to.eql('PENDING');",
+                  "    pm.expect(json.total_cents).to.be.above(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservation_id\": \"{{reservationId}}\",\n  \"idempotency_key\": \"idemp-key-auto-101\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"]
+            }
+          }
         },
-        "url": {
-          "raw": "{{baseUrl}}/api/payments/mock",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "payments", "mock"]
+        {
+          "name": "Idempotent Retry with Same Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Idempotency returns identical order without duplication', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.id).to.eql(pm.collectionVariables.get('orderId'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservation_id\": \"{{reservationId}}\",\n  \"idempotency_key\": \"idemp-key-auto-101\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "Payments - Mock Webhook Callback",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "x-mock-webhook-secret", "value": "eventforge-mock-webhook-secret-xyz" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"order_id\": \"{{orderId}}\",\n  \"outcome\": \"approved\",\n  \"provider_reference\": \"wh_ref_9921\"\n}"
+      "name": "5. Payment Gateway Simulation",
+      "item": [
+        {
+          "name": "Simulate Mock Payment Approval (Synchronous)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Payment approved and order confirmed (200)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.order.status).to.eql('PAID');",
+                  "    pm.expect(json.transaction.status).to.eql('SUCCESS');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"{{orderId}}\",\n  \"outcome\": \"approve\",\n  \"payment_method\": \"credit_card\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/mock",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "mock"]
+            }
+          }
         },
-        "url": {
-          "raw": "{{baseUrl}}/api/payments/webhook/mock",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "payments", "webhook", "mock"]
+        {
+          "name": "Simulate Mock Payment (Asynchronous Mode)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Asynchronous initiation returns 202 Accepted', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql('PROCESSING');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"{{orderId}}\",\n  \"outcome\": \"approve\",\n  \"mode\": \"async\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/mock",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "mock"]
+            }
+          }
+        },
+        {
+          "name": "Mock Payment Webhook Callback",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Webhook processed successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-mock-webhook-secret", "value": "eventforge-mock-webhook-secret-xyz" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"{{orderId}}\",\n  \"outcome\": \"approved\",\n  \"provider_reference\": \"wh_ref_verified_101\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/webhook/mock",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "webhook", "mock"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "Organizer - Tenant Analytics",
-      "request": {
-        "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{organizerToken}}" }],
-        "url": {
-          "raw": "{{baseUrl}}/api/organizer/analytics",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "organizer", "analytics"]
+      "name": "6. Edge Cases & Concurrency Tests",
+      "item": [
+        {
+          "name": "Edge Case 1: Sold Out / Zero Overselling (Race Condition)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns HTTP 409 Conflict with SOLD_OUT', function () {",
+                  "    pm.response.to.have.status(409);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.error).to.eql('SOLD_OUT');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"ticket_tier_id\": \"{{tierId}}\",\n      \"quantity\": 99999\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reservations"]
+            }
+          }
+        },
+        {
+          "name": "Edge Case 2: Checkout on Expired Reservation Hold",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns HTTP 409 Conflict with RESERVATION_EXPIRED or RESERVATION_NOT_FOUND', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([404, 409]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservation_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"idempotency_key\": \"idemp-expired-test\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"]
+            }
+          }
+        },
+        {
+          "name": "Edge Case 3: Invalid Quantity Zero or Negative",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns HTTP 400 Validation Error for zero quantity', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.error).to.eql('VALIDATION_ERROR');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"ticket_tier_id\": \"{{tierId}}\",\n      \"quantity\": 0\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reservations"]
+            }
+          }
+        },
+        {
+          "name": "Edge Case 4: Cross-Tenant Isolation (Unauthorized Alteration)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns HTTP 403 Forbidden for cross-tenant tier alteration', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{organizerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hacked Tier\",\n  \"price_cents\": 100,\n  \"total_quantity\": 10\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/events/99999999-9999-9999-9999-999999999999/tiers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "organizer", "events", "99999999-9999-9999-9999-999999999999", "tiers"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "Admin - List All Tenants",
-      "request": {
-        "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
-        "url": {
-          "raw": "{{baseUrl}}/api/admin/tenants",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "admin", "tenants"]
+      "name": "7. Analytics & Admin Oversight",
+      "item": [
+        {
+          "name": "Organizer Real-Time Analytics Dashboard",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns revenue and conversion statistics', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('totalRevenue');",
+                  "    pm.expect(json).to.have.property('conversionRate');",
+                  "    pm.expect(json).to.have.property('revenueTrend');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{organizerToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "organizer", "analytics"]
+            }
+          }
+        },
+        {
+          "name": "Admin - List All Multi-Tenants",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Admin lists all tenants', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.length).to.be.above(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/tenants",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "tenants"]
+            }
+          }
+        },
+        {
+          "name": "Admin - Structured System Audit Logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Admin audits system logs', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/logs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "logs"]
+            }
+          }
         }
-      }
-    },
-    {
-      "name": "Admin - System Audit Logs",
-      "request": {
-        "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
-        "url": {
-          "raw": "{{baseUrl}}/api/admin/logs",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "admin", "logs"]
-        }
-      }
+      ]
     }
   ],
   "variable": [

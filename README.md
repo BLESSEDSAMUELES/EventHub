@@ -201,6 +201,26 @@ npm run test:concurrency
 | **TC-09** | Cross-attendee isolation| Attendee A attempts to view/cancel Attendee B's hold | HTTP 403 `FORBIDDEN` | ✅ **PASSED** |
 | **TC-10** | Multi-tenant isolation | Organizer A attempts to alter Organizer B's events | HTTP 403 `FORBIDDEN` | ✅ **PASSED** |
 
+### 📮 Postman Collection & Automated Edge-Case Test Suite
+
+The repository includes a ready-to-import Postman collection located at [`backend/postman/eventforge.postman_collection.json`](backend/postman/eventforge.postman_collection.json) featuring **17 automated test requests** organized into 7 folders:
+- **1. Authentication & RBAC**: Login for Attendee, Organizer, and Platform Admin with automated JWT variable capture.
+- **2. Event Discovery & Redis Caching**: Heavy-read event browsing cached in Redis with pattern-based invalidation.
+- **3. Reservation Engine (10-Min Hold)**: Atomic PostgreSQL `SELECT FOR UPDATE` hold creation with TTL expiration assertions.
+- **4. Orders & Idempotency**: Creation and deduplicated retry verification via client `Idempotency-Key`.
+- **5. Payment Simulation**: Synchronous payment approval, asynchronous simulation (`HTTP 202`), and signed webhook callbacks.
+- **6. Edge Cases & Concurrency Tests**:
+  - `Edge Case 1: Sold Out / Zero Overselling (HTTP 409 SOLD_OUT)`
+  - `Edge Case 2: Checkout on Expired Reservation Hold (HTTP 409 RESERVATION_EXPIRED)`
+  - `Edge Case 3: Invalid Quantity Zero / Negative (HTTP 400 VALIDATION_ERROR)`
+  - `Edge Case 4: Cross-Tenant Isolation (HTTP 403 FORBIDDEN)`
+- **7. Analytics & Admin**: Real-time revenue/conversion dashboard metrics and structured audit logging.
+
+**Run via Newman CLI:**
+```bash
+npx newman run backend/postman/eventforge.postman_collection.json --env-var baseUrl=http://localhost:4000
+```
+
 ---
 
 ## 📂 Repository Directory Structure

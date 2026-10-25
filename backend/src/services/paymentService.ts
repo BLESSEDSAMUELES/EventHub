@@ -7,9 +7,44 @@ export interface MockPaymentInput {
   attendee_id: string;
   outcome?: 'approve' | 'reject';
   payment_method?: string;
+  mode?: 'sync' | 'async';
 }
 
 export class PaymentService {
+  /**
+   * Asynchronous mock payment initiation (HTTP 202 + background callback)
+   */
+  async initiateAsyncMockPayment(input: MockPaymentInput): Promise<{ status: string; order_id: string; message: string }> {
+    const order = await db.getOrderById(input.order_id);
+    if (!order) {
+      throw { status: 404, code: 'ORDER_NOT_FOUND', message: 'Order not found' };
+    }
+    if (order.attendee_id !== input.attendee_id) {
+      throw { status: 403, code: 'FORBIDDEN', message: 'You do not own this order' };
+    }
+
+    // Schedule background asynchronous settlement after 1000ms
+    setTimeout(async () => {
+      try {
+        await this.processMockPayment({
+          order_id: input.order_id,
+          attendee_id: input.attendee_id,
+          outcome: input.outcome || 'approve',
+          payment_method: input.payment_method || 'credit_card',
+        });
+        logger.info(`Async mock payment settlement completed for order ${input.order_id}`);
+      } catch (e) {
+        logger.error(`Async mock payment settlement failed for order ${input.order_id}`, e);
+      }
+    }, 1000);
+
+    return {
+      status: 'PROCESSING',
+      order_id: order.id,
+      message: 'Payment simulation initiated asynchronously. Resolving via mock gateway in 1s.',
+    };
+  }
+
   async processMockPayment(input: MockPaymentInput): Promise<{ order: Order; transaction: PaymentTransaction }> {
     const outcome = input.outcome || 'approve';
     const paymentMethod = input.payment_method || 'credit_card';

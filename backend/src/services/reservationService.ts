@@ -28,78 +28,27 @@ export class ReservationService {
       throw { status: 400, code: 'VALIDATION_ERROR', message: 'At least one ticket tier must be selected' };
     }
 
-    return db.withLock(async () => {
-      const now = new Date();
-      const validatedItems: { tier: TicketTier; quantity: number }[] = [];
-
-      for (const reqItem of input.items) {
-        if (!reqItem.quantity || reqItem.quantity <= 0) {
-          throw { status: 400, code: 'VALIDATION_ERROR', message: 'Quantity must be greater than zero' };
-        }
-
-        const tier = await db.getTicketTierById(reqItem.ticket_tier_id);
-        if (!tier) {
-          throw { status: 404, code: 'TIER_NOT_FOUND', message: `Ticket tier ${reqItem.ticket_tier_id} not found` };
-        }
-
-        const event = await db.getEventById(tier.event_id);
-        if (!event) {
-          throw { status: 404, code: 'EVENT_NOT_FOUND', message: 'Associated event not found' };
-        }
-
-        if (event.status !== 'published') {
-          throw { status: 409, code: 'EVENT_NOT_PUBLISHED', message: 'Event is not open for ticket sales' };
-        }
-
-        const cutoffDate = new Date(event.sales_cutoff);
-        if (now > cutoffDate) {
-          throw { status: 409, code: 'SALES_CUTOFF_PASSED', message: 'Sales cut-off date has passed for this event' };
-        }
-
-        if (tier.available_quantity < reqItem.quantity) {
-          throw {
-            status: 409,
-            code: 'SOLD_OUT',
-            message: `Insufficient inventory for tier "${tier.name}". Available: ${tier.available_quantity}, requested: ${reqItem.quantity}`,
-          };
-        }
-
-        validatedItems.push({ tier, quantity: reqItem.quantity });
+    for (const reqItem of input.items) {
+      if (!reqItem.quantity || reqItem.quantity <= 0) {
+        throw { status: 400, code: 'VALIDATION_ERROR', message: 'Quantity must be greater than zero' };
       }
+    }
 
-      // Decrement inventory for all requested tiers
-      for (const { tier, quantity } of validatedItems) {
-        tier.available_quantity -= quantity;
-        await db.updateTicketTier(tier.id, { available_quantity: tier.available_quantity });
-      }
+    // Execute atomic reservation transaction with row-level locking (PostgreSQL SELECT FOR UPDATE or in-memory lock)
+    const result = await db.executeReservationTransaction(
+      input.tenant_id,
+      input.attendee_id,
+      input.items,
+      config.holdMinutes
+    );
 
-      // Expiration time (10 minutes)
-      const expiresAt = new Date(now.getTime() + config.holdMinutes * 60 * 1000).toISOString();
+    logger.info(`Reservation hold created: ${result.reservation.id} for attendee ${input.attendee_id}`, {
+      reservation_id: result.reservation.id,
+      expires_at: result.reservation.expires_at,
+      item_count: result.items.length,
+    }, input.tenant_id);
 
-      const reservationItems = validatedItems.map(({ tier, quantity }) => ({
-        ticket_tier_id: tier.id,
-        quantity,
-        unit_price_cents: tier.price_cents,
-      }));
-
-      const result = await db.insertReservation(
-        {
-          tenant_id: input.tenant_id,
-          attendee_id: input.attendee_id,
-          status: 'ACTIVE',
-          expires_at: expiresAt,
-        },
-        reservationItems
-      );
-
-      logger.info(`Reservation hold created: ${result.reservation.id} for attendee ${input.attendee_id}`, {
-        reservation_id: result.reservation.id,
-        expires_at: expiresAt,
-        tiers: validatedItems.map((v) => ({ name: v.tier.name, qty: v.quantity })),
-      }, input.tenant_id);
-
-      return result;
-    });
+    return result;
   }
 
   async getReservation(id: string, attendeeId?: string, isAdmin: boolean = false): Promise<{ reservation: Reservation; items: ReservationItem[] } | null> {
