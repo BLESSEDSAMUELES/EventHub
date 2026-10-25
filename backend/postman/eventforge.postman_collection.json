@@ -1,0 +1,218 @@
+{
+  "info": {
+    "name": "EventForge Ticketing API Collection",
+    "_postman_id": "c622b7a4-84d9-4d6f-87d2-7c3905cf71e4",
+    "description": "Comprehensive API collection for EventForge Multi-Tenant Event & Ticket Reservation System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "System Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Login Attendee",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"blessed@example.com\",\n  \"password\": \"password123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Login Organizer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"priya@example.com\",\n  \"password\": \"password123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Login Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"admin123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "Events - List Public Events",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/events?city=Chennai",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "events"],
+          "query": [{ "key": "city", "value": "Chennai" }]
+        }
+      }
+    },
+    {
+      "name": "Events - Get Event Details",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/events/{{eventId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "events", "{{eventId}}"]
+        }
+      }
+    },
+    {
+      "name": "Reservations - Create 10-Min Hold",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    {\n      \"ticket_tier_id\": \"{{tierId}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/reservations",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "reservations"]
+        }
+      }
+    },
+    {
+      "name": "Orders - Create Order (Idempotent)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Idempotency-Key", "value": "test-key-001" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reservation_id\": \"{{reservationId}}\",\n  \"idempotency_key\": \"test-key-001\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/orders",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "orders"]
+        }
+      }
+    },
+    {
+      "name": "Payments - Simulate Mock Payment Approval",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"order_id\": \"{{orderId}}\",\n  \"outcome\": \"approve\",\n  \"payment_method\": \"credit_card\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/payments/mock",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "payments", "mock"]
+        }
+      }
+    },
+    {
+      "name": "Payments - Mock Webhook Callback",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-mock-webhook-secret", "value": "eventforge-mock-webhook-secret-xyz" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"order_id\": \"{{orderId}}\",\n  \"outcome\": \"approved\",\n  \"provider_reference\": \"wh_ref_9921\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/payments/webhook/mock",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "payments", "webhook", "mock"]
+        }
+      }
+    },
+    {
+      "name": "Organizer - Tenant Analytics",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{organizerToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/organizer/analytics",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "organizer", "analytics"]
+        }
+      }
+    },
+    {
+      "name": "Admin - List All Tenants",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/tenants",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "tenants"]
+        }
+      }
+    },
+    {
+      "name": "Admin - System Audit Logs",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/logs",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "logs"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000" },
+    { "key": "token", "value": "" },
+    { "key": "organizerToken", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "eventId", "value": "" },
+    { "key": "tierId", "value": "" },
+    { "key": "reservationId", "value": "" },
+    { "key": "orderId", "value": "" }
+  ]
+}

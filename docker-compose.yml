@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: eventforge-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: eventforge
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: eventforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/supabase/migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventforge -d eventforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: eventforge-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eventforge-backend
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      DATABASE_URL: postgresql://eventforge:password123@postgres:5432/eventforge
+      DATABASE_SSL: "false"
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: eventforge-super-secret-jwt-key-2026-production
+      MOCK_PAYMENT_WEBHOOK_SECRET: eventforge-mock-payment-webhook-secret-2026
+      FRONTEND_ORIGIN: "http://localhost:5173"
+      HOLD_MINUTES: "10"
+      AUTO_SEED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 4. Frontend Web Client (Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+    container_name: eventforge-frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  redisdata:
